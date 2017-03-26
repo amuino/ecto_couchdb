@@ -53,9 +53,20 @@ defmodule CouchdbAdapter do
 
   @spec to_doc(Keyword.t) :: {[{String.t, any}]}
   defp to_doc(fields) do
-   kv_list = for {name, value} <- fields, do: {to_string(name), value}
-   {kv_list}
+    kv_list = for {name, value} <- fields do
+      {to_string(name), to_doc_value(value)}
+    end
+    {kv_list}
   end
+  defp to_doc_value(list) when is_list(list) do
+    values = for i <- list, do: to_doc_value(i)
+    {values}
+  end
+  defp to_doc_value(map) when is_map(map) do
+    kv_list = for {name, value} <- map, do: {to_string(name), to_doc_value(value)}
+    {kv_list}
+  end
+  defp to_doc_value(value), do: value
 
   defp returning(returning, fields) do
     for field_name <- returning, do: normalize(field_name, fields)
