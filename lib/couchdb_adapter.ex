@@ -92,12 +92,33 @@ defmodule CouchdbAdapter do
     {field_name, value}
   end
 
-  def prepare(_operation, query), do: {:nocache, query}
+  def prepare(:all, query), do: {:nocache, normalize_query(query)}
 
-  def execute(_repo, meta, {_cache, query}, params, preprocess, _options) do
+  @select_all_expr quote do: %{expr: {:&, _, [0]}}
+  @select_some_expr quote do: %{expr: expr}
+  defp normalize_query(%{joins: [_|_]}), do: raise "joins are not supported"
+  defp normalize_query(%{preloads: [_|_]}), do: raise "preloads are not supported"
+  defp normalize_query(%{havings: [_|_]}), do: raise "havings are not supported"
+  defp normalize_query(%{distinct: d}) when d != nil, do: raise "distinct is not supported"
+  defp normalize_query(%{select: %{expr: {:&, _, [0]},
+                                   fields: [{:&, _, [0, fields, _]}]},
+                         sources: {{db_name, schema}}
+                        } = query) do
+    "Elixir." <> design = to_string(schema)
+    %{view: {design, "all"}, options: [include_docs: true]}
+  end
+  defp normalize_query(%{select: %{expr: expr}} = query) do
+    IO.puts "MATCHED SOME QUERY: #{inspect Map.from_struct query}"
+    IO.puts "FIELDS: #{expr}"
+  end
+  defp normalize_query(query) do
+    raise "Unsupported query: #{inspect Map.from_struct query}"
+  end
+
+  def execute(_repo, meta, {_cache, query}, _params, preprocess, _options) do
     with server <- :couchbeam.server_connection("localhost", 5984),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta.sources)),
-         {:ok, data} <- :couchbeam_view.fetch(db, {"Post", "all"}, include_docs: true)
+         {:ok, data} <- :couchbeam_view.fetch(db, query.view, query.options)
     do
       {records, count} = Enum.map_reduce(data, 0, &{process_result(&1, preprocess, meta.fields), &2 + 1})
       {count, records}

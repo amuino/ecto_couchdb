@@ -21,6 +21,15 @@ defmodule Stats do
   end
 end
 
+defmodule View do
+  @behaviour Ecto.Type
+
+  def cast(_), do: raise "not implemented"
+  def dump(_), do: {:ok, nil}
+  def load(_), do: raise "not implemented"
+  def type, do: View
+end
+
 defmodule Post do
   use Ecto.Schema
   @primary_key {:_id, :binary_id, autogenerate: true}
@@ -31,6 +40,8 @@ defmodule Post do
     field :_rev, :string, read_after_writes: true
     embeds_many :grants, Grant
     embeds_one :stats, Stats
+
+    field :by_id, View, opts: [:_id]
   end
 end
 

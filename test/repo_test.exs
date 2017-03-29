@@ -107,8 +107,11 @@ defmodule RepoTest do
     end
 
     test "reads embeds_many properties", %{docs: docs} do
+      import Ecto.Query
+      body = "BODY"
+      query = from p in Post
       # get results indexed by _id to remove database non-determinism
-      results = Repo.all(Post) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
+      results = Repo.all(query) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
       assert results["id1"].grants == [%Grant{user: "u1.1", access: "a1.1"}, %Grant{user: "u1.2", access: "a1.2"}]
       assert results["id2"].grants == [%Grant{user: "u2.1", access: "a2.1"}, %Grant{user: "u2.2", access: "a2.2"}]
     end
