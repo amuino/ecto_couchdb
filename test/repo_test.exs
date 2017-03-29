@@ -78,8 +78,8 @@ defmodule RepoTest do
       for doc <- docs do
         {:ok, _} = :couchbeam.save_doc(context.db, CouchdbAdapter.to_doc(doc))
       end
-      pid = Repo.start_link
-      # on_exit "stop repo", fn -> Process.exit(pid) end
+      {:ok, pid} = Repo.start_link
+      on_exit "stop repo", fn -> Process.exit(pid, :kill) end
       %{docs: docs}
     end
 
