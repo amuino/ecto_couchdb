@@ -1,6 +1,6 @@
 defmodule Post do
   use Ecto.Schema
-  use Design
+  use Couchdb.Design
   @primary_key {:_id, :binary_id, autogenerate: true}
 
   schema "posts" do
@@ -10,13 +10,14 @@ defmodule Post do
     embeds_many :grants, Grant
     embeds_one :stats, Stats
 
-    field :by_id, View
     designs do
-      design "foo", do: nil
-      design "bar", do: nil
-      IO.puts "Hey ya!"
+      design __MODULE__ do
+        view :by_title, [:string]
+        view :all, [:string]
+      end
+      design "secondary" do
+        view :by_other, [:string]
+      end
     end
   end
 end
-
-IO.inspect Post.__schema__(:designs)

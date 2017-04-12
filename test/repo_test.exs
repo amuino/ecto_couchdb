@@ -5,10 +5,29 @@ defmodule RepoTest do
   use ExUnit.Case
 
   setup do
+    db = DatabaseCleaner.ensure_clean_db!(Post)
+    design_doc = %{_id: "_design/Post", language: "javascript",
+                   views: %{
+                     all: %{
+                       map: "function(doc) { emit(doc._id, doc) }"
+                     }
+                  }}
+    :couchbeam.save_doc(db, CouchdbAdapter.to_doc(design_doc))
+
+    docs = for i <- 1..3, do: %{_id: "id#{i}", title: "t#{i}", body: "b#{i}",
+                                stats: %{visits: i, time: 10*i},
+                                grants: [%{user: "u#{i}.1", access: "a#{i}.1"},
+                                         %{user: "u#{i}.2", access: "a#{i}.2"}]}
+    for doc <- docs do
+      {:ok, _} = :couchbeam.save_doc(db, CouchdbAdapter.to_doc(doc))
+    end
+    {:ok, pid} = Repo.start_link
+    on_exit "stop repo", fn -> Process.exit(pid, :kill) end
     %{
-      db: DatabaseCleaner.ensure_clean_db!(Post),
+      db: db,
       post: %Post{title: "how to write and adapter", body: "Don't know yet"},
-      grants: [%Grant{user: "admin", access: "all"}, %Grant{user: "other", access: "read"}]
+      grants: [%Grant{user: "admin", access: "all"}, %Grant{user: "other", access: "read"}],
+      docs: docs
     }
   end
 
@@ -61,28 +80,7 @@ defmodule RepoTest do
     end
   end
 
-  describe "all" do
-    setup(context) do
-      design_doc = %{_id: "_design/Post", language: "javascript",
-                     views: %{
-                       all: %{
-                         map: "function(doc) { emit(doc._id, doc) }"
-                       }
-                    }}
-      :couchbeam.save_doc(context.db, CouchdbAdapter.to_doc(design_doc))
-
-      docs = for i <- 1..2, do: %{_id: "id#{i}", title: "t#{i}", body: "b#{i}",
-                                  stats: %{visits: i, time: 10*i},
-                                  grants: [%{user: "u#{i}.1", access: "a#{i}.1"},
-                                           %{user: "u#{i}.2", access: "a#{i}.2"}]}
-      for doc <- docs do
-        {:ok, _} = :couchbeam.save_doc(context.db, CouchdbAdapter.to_doc(doc))
-      end
-      {:ok, pid} = Repo.start_link
-      on_exit "stop repo", fn -> Process.exit(pid, :kill) end
-      %{docs: docs}
-    end
-
+  describe "all(Schema)" do
     test "retrieves all Posts as a list", %{docs: docs} do
       results = Repo.all(Post)
       assert length(results) == length(docs)
@@ -107,13 +105,50 @@ defmodule RepoTest do
     end
 
     test "reads embeds_many properties", %{docs: docs} do
-      import Ecto.Query
-      body = "BODY"
-      query = from p in Post
       # get results indexed by _id to remove database non-determinism
-      results = Repo.all(query) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
+      results = Repo.all(Post) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
       assert results["id1"].grants == [%Grant{user: "u1.1", access: "a1.1"}, %Grant{user: "u1.2", access: "a1.2"}]
       assert results["id2"].grants == [%Grant{user: "u2.1", access: "a2.1"}, %Grant{user: "u2.2", access: "a2.2"}]
+    end
+  end
+
+  describe "all(Ecto.Query)" do
+    import Ecto.Query
+
+    test "Post.all == key", %{docs: docs} do
+      query = from p in Post, where: p.all == "id1"
+      results = Repo.all(query)
+      assert length(results) == 1
+      [result] = results
+      assert result._id == "id1"
+    end
+
+    test "Post.all in [keys...]", %{docs: docs} do
+      query = from p in Post, where: p.all in ["id1", "id2", "not found"]
+      results = Repo.all(query) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
+      assert length(Map.keys(results)) == 2
+    end
+
+    test "Post.all > key is NOT SUPPORTED", %{docs: docs} do
+      assert_raise RuntimeError, fn -> Repo.all(from p in Post, where: p.all > "id2") end
+    end
+
+    test "Post.all >= key", %{docs: docs} do
+      query = from p in Post, where: p.all >= "id2"
+      results = Repo.all(query)
+      assert length(results) == 2
+      [id2, id3] = results
+      assert id2._id == "id2"
+      assert id3._id == "id3"
+    end
+
+    test "Post.all <= key", %{docs: docs} do
+      query = from p in Post, where: p.all <= "id2"
+      results = Repo.all(query)
+      assert length(results) == 2
+      [id1, id2] = results
+      assert id1._id == "id1"
+      assert id2._id == "id2"
     end
   end
 end

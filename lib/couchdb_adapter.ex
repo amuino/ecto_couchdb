@@ -104,8 +104,9 @@ defmodule CouchdbAdapter do
                                    fields: [{:&, _, [0, fields, _]}]},
                          sources: {{db_name, schema}}
                         } = query) do
-    "Elixir." <> design = to_string(schema)
-    %{view: {design, "all"}, options: [include_docs: true]}
+    # IO.inspect Map.from_struct(query), label: "normalize_query"
+    {view, options} = process_wheres(query.wheres, schema)
+    %{view: view, options: [include_docs: true] ++ options}
   end
   defp normalize_query(%{select: %{expr: expr}} = query) do
     IO.puts "MATCHED SOME QUERY: #{inspect Map.from_struct query}"
@@ -113,6 +114,40 @@ defmodule CouchdbAdapter do
   end
   defp normalize_query(query) do
     raise "Unsupported query: #{inspect Map.from_struct query}"
+  end
+
+  defp process_wheres([], schema), do: {{schema.__schema__(:default_design), "all"}, []}
+  defp process_wheres([where], schema), do: process_where(where, schema)
+  defp process_wheres(wheres), do: raise("Only 1 where clause is allowed: #{inspect wheres}")
+
+  defp process_where(%Ecto.Query.BooleanExpr{op: :and, expr: expr}, schema) do
+    process_and_expr(expr, schema)
+  end
+  defp process_where(expr, _), do: raise "Unsupported where clause: #{inspect expr}"
+
+  defp process_and_expr(expr, schema) do
+    case expr do
+      {:==, _ , [lhs, rhs]} -> process_eq(lhs, rhs, schema)
+      {:in, _ , [lhs, rhs]} -> process_in(lhs, rhs, schema)
+      {:>=, _ , [lhs, rhs]} -> process_gt(lhs, rhs, schema)
+      {:<=, _ , [lhs, rhs]} -> process_lt(lhs, rhs, schema)
+      _ -> raise "Unsupported expression: #{inspect expr}"
+    end
+  end
+
+  defp process_eq({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
+    {{schema.__schema__(:default_design), to_string(view)}, key: rhs}
+  end
+
+  defp process_in({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
+    {{schema.__schema__(:default_design), to_string(view)}, keys: rhs}
+  end
+
+  defp process_gt({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
+    {{schema.__schema__(:default_design), to_string(view)}, startkey: rhs}
+  end
+  defp process_lt({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
+    {{schema.__schema__(:default_design), to_string(view)}, endkey: rhs}
   end
 
   def execute(_repo, meta, {_cache, query}, _params, preprocess, _options) do
