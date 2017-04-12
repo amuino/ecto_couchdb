@@ -30,7 +30,7 @@ defmodule CouchdbAdapter.Mixfile do
   defp deps do
     [
       {:ecto, "~> 2.1"},
-      {:couchbeam, git: "git://github.com/benoitc/couchbeam.git"},
+      {:couchbeam, git: "git://github.com/amuino/couchbeam.git", branch: "fix_some_dialyzer_errors"},
       {:mix_test_watch, "~> 0.2.6", only: :dev, runtime: false},
       {:dialyxir, "~> 0.5.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 0.6.1", only: [:dev, :test], runtime: false},
