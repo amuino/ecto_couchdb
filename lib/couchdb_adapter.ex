@@ -30,11 +30,13 @@ defmodule CouchdbAdapter do
   # def dumpers(:binary_id, type),      do: [type, Ecto.UUID]
   def dumpers(_, type),               do: [type]
 
+  @doc false
+  defmodule Noop do
+    def start_link, do: {:ok, self()}
+  end
+
   def child_spec(_repo, _options) do
     import Supervisor.Spec
-    defmodule Noop do
-      def start_link, do: {:ok, self()}
-    end
     worker(Noop, [])
   end
 

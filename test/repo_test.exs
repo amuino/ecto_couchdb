@@ -97,14 +97,14 @@ defmodule RepoTest do
           do: assert Map.get(actual, k) == v
     end
 
-    test "reads embeds_one properties", %{docs: docs} do
+    test "reads embeds_one properties" do
       # get results indexed by _id to remove database non-determinism
       results = Repo.all(Post) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
       assert results["id1"].stats == %Stats{time: 10, visits: 1}
       assert results["id2"].stats == %Stats{time: 20, visits: 2}
     end
 
-    test "reads embeds_many properties", %{docs: docs} do
+    test "reads embeds_many properties" do
       # get results indexed by _id to remove database non-determinism
       results = Repo.all(Post) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
       assert results["id1"].grants == [%Grant{user: "u1.1", access: "a1.1"}, %Grant{user: "u1.2", access: "a1.2"}]
@@ -115,7 +115,7 @@ defmodule RepoTest do
   describe "all(Ecto.Query)" do
     import Ecto.Query
 
-    test "Post.all == key", %{docs: docs} do
+    test "Post.all == key" do
       query = from p in Post, where: p.all == "id1"
       results = Repo.all(query)
       assert length(results) == 1
@@ -123,17 +123,17 @@ defmodule RepoTest do
       assert result._id == "id1"
     end
 
-    test "Post.all in [keys...]", %{docs: docs} do
+    test "Post.all in [keys...]" do
       query = from p in Post, where: p.all in ["id1", "id2", "not found"]
       results = Repo.all(query) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
       assert length(Map.keys(results)) == 2
     end
 
-    test "Post.all > key is NOT SUPPORTED", %{docs: docs} do
+    test "Post.all > key is NOT SUPPORTED" do
       assert_raise RuntimeError, fn -> Repo.all(from p in Post, where: p.all > "id2") end
     end
 
-    test "Post.all >= key", %{docs: docs} do
+    test "Post.all >= key" do
       query = from p in Post, where: p.all >= "id2"
       results = Repo.all(query)
       assert length(results) == 2
@@ -142,7 +142,7 @@ defmodule RepoTest do
       assert id3._id == "id3"
     end
 
-    test "Post.all <= key", %{docs: docs} do
+    test "Post.all <= key" do
       query = from p in Post, where: p.all <= "id2"
       results = Repo.all(query)
       assert length(results) == 2
