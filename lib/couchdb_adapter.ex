@@ -120,7 +120,7 @@ defmodule CouchdbAdapter do
 
   defp process_wheres([], schema), do: {{schema.__schema__(:default_design), "all"}, []}
   defp process_wheres([where], schema), do: process_where(where, schema)
-  defp process_wheres(wheres), do: raise("Only 1 where clause is allowed: #{inspect wheres}")
+  defp process_wheres(wheres, _schema), do: raise("Only 1 where clause is allowed: #{inspect wheres}")
 
   defp process_where(%Ecto.Query.BooleanExpr{op: :and, expr: expr}, schema) do
     process_and_expr(expr, schema)
@@ -133,9 +133,30 @@ defmodule CouchdbAdapter do
       {:in, _ , [lhs, rhs]} -> process_in(lhs, rhs, schema)
       {:>=, _ , [lhs, rhs]} -> process_gt(lhs, rhs, schema)
       {:<=, _ , [lhs, rhs]} -> process_lt(lhs, rhs, schema)
+      {:and, _, exprs} -> Enum.reduce(exprs, {nil, []}, &merge_and_expressions(&1, &2, schema))
       _ -> raise "Unsupported expression: #{inspect expr}"
     end
   end
+
+  defp merge_and_expressions(expr, {view, opts}, schema) do
+    {new_view, new_opts} = process_and_expr(expr, schema)
+    if view && view != new_view do
+      raise("""
+            Detected view #{inspect view}, but got #{inspect new_view}
+            from expression #{inspect expr}
+            """)
+    else
+      {new_view, Keyword.merge(opts, new_opts, &solve_and_opts_conflict/3)}
+    end
+  end
+
+  defp solve_and_opts_conflict(key, current_value, new_value)
+  # List intersection
+  defp solve_and_opts_conflict(:keys, current, new), do: current -- (current -- new)
+  defp solve_and_opts_conflict(key, current, new) do
+    raise("Tried to assign #{inspect new} to #{inspect key}, with current value #{inspect current}")
+  end
+
 
   defp process_eq({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
     {{schema.__schema__(:default_design), to_string(view)}, key: rhs}

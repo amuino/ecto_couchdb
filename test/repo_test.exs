@@ -150,5 +150,41 @@ defmodule RepoTest do
       assert id1._id == "id1"
       assert id2._id == "id2"
     end
+
+    test "Post.all >= startkey and <= end_key", %{docs: docs} do
+      query = from p in Post, where: p.all >= "id2" and p.all <= "id2"
+      results = Repo.all(query)
+      assert length(results) == 1
+      [id2] = results
+      assert id2._id == "id2"
+    end
+
+    test "Post.all in [keys...] and in [other_keys...] intersecs the keys" do
+      query = from p in Post, where: p.all in ["id1", "id2"] and p.all in ["id3", "id2"]
+      [result] = Repo.all(query)
+      assert result._id == "id2"
+    end
+  end
+
+  describe "invalid queries" do
+    import Ecto.Query
+
+    test "Multiple >=" do
+      assert_raise RuntimeError, ~r/startkey/, fn ->
+        Repo.all(from p in Post, where: p.all >= "1" and p.all >= "2")
+      end
+    end
+
+    test "Multiple <=" do
+      assert_raise RuntimeError, ~r/endkey/, fn ->
+        Repo.all(from p in Post, where: p.all <= "1" and p.all <= "2")
+      end
+    end
+
+    test "Multiple ==" do
+      assert_raise RuntimeError, ~r/key/,  fn ->
+        Repo.all(from p in Post, where: p.all == "1" and p.all == "2")
+      end
+    end
   end
 end
