@@ -1,4 +1,8 @@
 defmodule CouchdbAdapter do
+  @moduledoc ~S"""
+  CouchdbAdapter provides an implementation of the `Ecto.Adapter` behaviour for the Couchdb
+  database.
+  """
   @behaviour Ecto.Adapter
 
   defmacro __before_compile__(_env), do: nil
@@ -12,7 +16,7 @@ defmodule CouchdbAdapter do
   @doc false
   def loaders({:embed, _} = type, _), do: [&load_embed(type, &1)]
   # def loaders(:binary_id, type),      do: [Ecto.UUID, type]
-  def loaders(x, type),               do: [type]
+  def loaders(_, type),               do: [type]
 
   defp load_embed({:embed, %{related: related, cardinality: :one}}, value) do
     {:ok, struct(related, atomize_keys(value))}
@@ -23,15 +27,15 @@ defmodule CouchdbAdapter do
   end
 
   defp atomize_keys({map}), do: atomize_keys(map)
-  defp atomize_keys(map), do: for {k,v} <- map, do: {String.to_atom(k), v}
+  defp atomize_keys(map), do: for {k, v} <- map, do: {String.to_atom(k), v}
 
   @doc false
   def dumpers({:embed, _} = type, _), do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
   # def dumpers(:binary_id, type),      do: [type, Ecto.UUID]
   def dumpers(_, type),               do: [type]
 
-  @doc false
   defmodule Noop do
+    @moduledoc false
     def start_link, do: {:ok, self()}
   end
 
@@ -52,6 +56,7 @@ defmodule CouchdbAdapter do
   # - on_conflict: https://hexdocs.pm/ecto/Ecto.Adapter.html#t:on_conflict/0
   # - returning: list of atoms of fields whose value needs to be returned
   # - options: ??? Seems to be a Keyword.t (but the actual type is options). Arrives as [skip_transaction: true]
+  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   def insert(_repo, meta, fields, _on_conflict, returning, _options) do
     with server <- :couchbeam.server_connection("localhost", 5984),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta)),
@@ -94,25 +99,20 @@ defmodule CouchdbAdapter do
     {field_name, value}
   end
 
+  @doc false
   def prepare(:all, query), do: {:nocache, normalize_query(query)}
 
-  @select_all_expr quote do: %{expr: {:&, _, [0]}}
-  @select_some_expr quote do: %{expr: expr}
   defp normalize_query(%{joins: [_|_]}), do: raise "joins are not supported"
   defp normalize_query(%{preloads: [_|_]}), do: raise "preloads are not supported"
   defp normalize_query(%{havings: [_|_]}), do: raise "havings are not supported"
   defp normalize_query(%{distinct: d}) when d != nil, do: raise "distinct is not supported"
   defp normalize_query(%{select: %{expr: {:&, _, [0]},
-                                   fields: [{:&, _, [0, fields, _]}]},
-                         sources: {{db_name, schema}}
+                                   fields: [{:&, _, [0, _fields, _]}]},
+                         sources: {{_db_name, schema}}
                         } = query) do
     # IO.inspect Map.from_struct(query), label: "normalize_query"
     {view, options} = process_wheres(query.wheres, schema)
     %{view: view, options: [include_docs: true] ++ options}
-  end
-  defp normalize_query(%{select: %{expr: expr}} = query) do
-    IO.puts "MATCHED SOME QUERY: #{inspect Map.from_struct query}"
-    IO.puts "FIELDS: #{expr}"
   end
   defp normalize_query(query) do
     raise "Unsupported query: #{inspect Map.from_struct query}"
@@ -151,7 +151,7 @@ defmodule CouchdbAdapter do
   end
 
   defp solve_and_opts_conflict(key, current_value, new_value)
-  # List intersection
+  # Combine multiple in by using the intersection of keys
   defp solve_and_opts_conflict(:keys, current, new), do: current -- (current -- new)
   defp solve_and_opts_conflict(key, current, new) do
     raise("Tried to assign #{inspect new} to #{inspect key}, with current value #{inspect current}")
@@ -173,6 +173,8 @@ defmodule CouchdbAdapter do
     {{schema.__schema__(:default_design), to_string(view)}, endkey: rhs}
   end
 
+  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
+  @doc false
   def execute(_repo, meta, {_cache, query}, _params, preprocess, _options) do
     with server <- :couchbeam.server_connection("localhost", 5984),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta.sources)),

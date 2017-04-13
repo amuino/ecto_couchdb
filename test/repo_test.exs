@@ -151,7 +151,7 @@ defmodule RepoTest do
       assert id2._id == "id2"
     end
 
-    test "Post.all >= startkey and <= end_key", %{docs: docs} do
+    test "Post.all >= startkey and <= end_key" do
       query = from p in Post, where: p.all >= "id2" and p.all <= "id2"
       results = Repo.all(query)
       assert length(results) == 1
