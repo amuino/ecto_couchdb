@@ -2,7 +2,7 @@ defmodule RepoTest do
   #
   # Test for the Ecto.Repository API, delegated to the CouchdbAdapter
   #
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   setup do
     db = DatabaseCleaner.ensure_clean_db!(Post)
