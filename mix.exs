@@ -33,7 +33,7 @@ defmodule CouchdbAdapter.Mixfile do
       {:couchbeam, git: "git://github.com/amuino/couchbeam.git", branch: "fix_some_dialyzer_errors"},
       {:mix_test_watch, "~> 0.2.6", only: :dev, runtime: false},
       {:dialyxir, "~> 0.5.0", only: [:dev, :test], runtime: false},
-      {:credo, "~> 0.6.1", only: [:dev, :test], runtime: false},
+      {:credo, "~> 0.7.2", only: [:dev, :test], runtime: false},
     ]
   end
 end
