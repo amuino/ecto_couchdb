@@ -7,6 +7,7 @@ defmodule CouchdbAdapter.Mixfile do
      elixir: "~> 1.4",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
+     test_coverage: [tool: Coverex.Task],
      deps: deps()]
   end
 
@@ -31,9 +32,11 @@ defmodule CouchdbAdapter.Mixfile do
     [
       {:ecto, "~> 2.1"},
       {:couchbeam, git: "git://github.com/amuino/couchbeam.git", branch: "fix_some_dialyzer_errors"},
+      {:hackney, "~> 1.5", override: true},
       {:mix_test_watch, "~> 0.2.6", only: :dev, runtime: false},
       {:dialyxir, "~> 0.5.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 0.7.2", only: [:dev, :test], runtime: false},
+      {:coverex, "~> 1.4.10", only: :test},
     ]
   end
 end
