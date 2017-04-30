@@ -58,7 +58,7 @@ defmodule CouchdbAdapter do
   # - options: ??? Seems to be a Keyword.t (but the actual type is options). Arrives as [skip_transaction: true]
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   def insert(_repo, meta, fields, _on_conflict, returning, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984),
+    with server <- :couchbeam.server_connection("localhost", 5984, "", []),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta)),
          {:ok, {new_fields}} <- :couchbeam.save_doc(db, to_doc(fields))
       do
