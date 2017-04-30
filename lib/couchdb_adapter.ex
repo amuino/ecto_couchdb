@@ -15,13 +15,11 @@ defmodule CouchdbAdapter do
 
   @doc false
   def loaders({:embed, _} = type, _), do: [&load_embed(type, &1)]
-  # def loaders(:binary_id, type),      do: [Ecto.UUID, type]
   def loaders(_, type),               do: [type]
 
   defp load_embed({:embed, %{related: related, cardinality: :one}}, value) do
     {:ok, struct(related, atomize_keys(value))}
   end
-
   defp load_embed({:embed, %{related: related, cardinality: :many}}, values) do
     {:ok, Enum.map(values, &struct(related, atomize_keys(&1)))}
   end
@@ -30,8 +28,6 @@ defmodule CouchdbAdapter do
   defp atomize_keys(map), do: for {k, v} <- map, do: {String.to_atom(k), v}
 
   @doc false
-  def dumpers({:embed, _} = type, _), do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
-  # def dumpers(:binary_id, type),      do: [type, Ecto.UUID]
   def dumpers(_, type),               do: [type]
 
   defmodule Noop do
@@ -126,7 +122,6 @@ defmodule CouchdbAdapter do
                                    fields: [{:&, _, [0, _fields, _]}]},
                          sources: {{_db_name, schema}}
                         } = query) do
-    # IO.inspect Map.from_struct(query), label: "normalize_query"
     {view, options} = process_wheres(query.wheres, schema)
     %{view: view, options: [include_docs: true] ++ options}
   end
@@ -172,7 +167,6 @@ defmodule CouchdbAdapter do
   defp solve_and_opts_conflict(key, current, new) do
     raise("Tried to assign #{inspect new} to #{inspect key}, with current value #{inspect current}")
   end
-
 
   defp process_eq({{:., _, [{:&, _, [0]}, view]}, _, _}, rhs, schema) do
     {{schema.__schema__(:default_design), to_string(view)}, key: rhs}
