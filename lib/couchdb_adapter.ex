@@ -70,6 +70,21 @@ defmodule CouchdbAdapter do
     end
   end
 
+  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
+  @doc false
+  def insert_all(_repo, schema_meta, _header, list, _on_conflict, returning, _options) do
+    with server <- :couchbeam.server_connection("localhost", 5984),
+         {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
+         {:ok, result} <- :couchbeam.save_docs(db, Enum.map(list, &to_doc(&1)))
+    do
+      if returning == [] do
+        {length(result), nil}
+      else
+        {length(result), Enum.map(result, fn({fields}) -> returning(returning, fields) end)}
+      end
+    end
+  end
+
   @spec db_name(Ecto.Adapter.schema_meta) :: String.t
   defp db_name(%{schema: schema}), do: schema.__schema__(:source)
   defp db_name({{db_name, _}}), do: db_name

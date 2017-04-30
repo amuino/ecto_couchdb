@@ -12,22 +12,18 @@ defmodule RepoTest do
                        map: "function(doc) { emit(doc._id, doc) }"
                      }
                   }}
-    :couchbeam.save_doc(db, CouchdbAdapter.to_doc(design_doc))
-
     docs = for i <- 1..3, do: %{_id: "id#{i}", title: "t#{i}", body: "b#{i}",
                                 stats: %{visits: i, time: 10*i},
                                 grants: [%{user: "u#{i}.1", access: "a#{i}.1"},
                                          %{user: "u#{i}.2", access: "a#{i}.2"}]}
-    for doc <- docs do
-      {:ok, _} = :couchbeam.save_doc(db, CouchdbAdapter.to_doc(doc))
-    end
     {:ok, pid} = Repo.start_link
     on_exit "stop repo", fn -> Process.exit(pid, :kill) end
     %{
       db: db,
       post: %Post{title: "how to write and adapter", body: "Don't know yet"},
       grants: [%Grant{user: "admin", access: "all"}, %Grant{user: "other", access: "read"}],
-      docs: docs
+      docs: docs,
+      design_doc: design_doc
     }
   end
 
@@ -80,7 +76,55 @@ defmodule RepoTest do
     end
   end
 
+  describe "insert_all" do
+    setup(context) do
+      :couchbeam.save_doc(context.db, CouchdbAdapter.to_doc(context.design_doc))
+      posts = Enum.map(context.docs, fn(doc) ->
+        %{doc |
+          grants: Enum.map(doc.grants, &struct(Grant, &1)),
+          stats: struct(Stats, doc.stats)
+        }
+      end)
+      %{posts: posts}
+    end
+
+    test "inserts with generated id/rev", %{posts: posts, db: db} do
+      posts = Enum.map(posts, &Map.drop(&1, [:_id]))
+      assert {3, nil} == Repo.insert_all(Post, posts)
+      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"}, [include_docs: true])
+      assert Enum.count(query_result) == 3
+      assert Enum.all? query_result, fn(result) ->
+        doc = :couchbeam_doc.get_value("value", result)
+        assert nil != :couchbeam_doc.get_value("_id", doc)
+        assert nil != :couchbeam_doc.get_value("_rev", doc)
+      end
+    end
+
+    test "inserts with explicit id", %{posts: posts, db: db} do
+      assert {3, nil} == Repo.insert_all(Post, posts)
+      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"}, [include_docs: posts])
+      assert Enum.count(query_result) == 3
+      assert Enum.all? Enum.zip(query_result, posts), fn({result, post}) ->
+        doc = :couchbeam_doc.get_value("value", result)
+        assert post._id == :couchbeam_doc.get_value("_id", doc)
+        assert nil != :couchbeam_doc.get_value("_rev", doc)
+        assert post.title == :couchbeam_doc.get_value("title", doc)
+        assert post.body == :couchbeam_doc.get_value("body", doc)
+        expected_grants = Enum.map post.grants, &CouchdbAdapter.to_doc(Map.from_struct(&1))
+        assert expected_grants == :couchbeam_doc.get_value("grants", doc)
+        assert CouchdbAdapter.to_doc(Map.from_struct(post.stats)) == :couchbeam_doc.get_value("stats", doc)
+      end
+    end
+  end
+
   describe "all(Schema)" do
+    setup %{docs: docs, db: db, design_doc: design_doc} do
+      :couchbeam.save_docs(db, Enum.map([design_doc | docs], fn(doc) ->
+        CouchdbAdapter.to_doc(doc)
+      end))
+      :ok
+    end
+
     test "retrieves all Posts as a list", %{docs: docs} do
       results = Repo.all(Post)
       assert length(results) == length(docs)
@@ -114,6 +158,13 @@ defmodule RepoTest do
 
   describe "all(Ecto.Query)" do
     import Ecto.Query
+
+    setup %{docs: docs, db: db, design_doc: design_doc} do
+      :couchbeam.save_docs(db, Enum.map([design_doc | docs], fn(doc) ->
+        CouchdbAdapter.to_doc(doc)
+      end))
+      :ok
+    end
 
     test "Post.all == key" do
       query = from p in Post, where: p.all == "id1"
