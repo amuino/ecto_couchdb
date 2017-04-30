@@ -180,10 +180,6 @@ defmodule RepoTest do
       assert length(Map.keys(results)) == 2
     end
 
-    test "Post.all > key is NOT SUPPORTED" do
-      assert_raise RuntimeError, fn -> Repo.all(from p in Post, where: p.all > "id2") end
-    end
-
     test "Post.all >= key" do
       query = from p in Post, where: p.all >= "id2"
       results = Repo.all(query)
@@ -235,6 +231,12 @@ defmodule RepoTest do
     test "Multiple ==" do
       assert_raise RuntimeError, ~r/key/,  fn ->
         Repo.all(from p in Post, where: p.all == "1" and p.all == "2")
+      end
+    end
+
+    test "Post.all > key" do
+      assert_raise RuntimeError, ~r/Unsupported expression/, fn ->
+        Repo.all(from p in Post, where: p.all > "id2")
       end
     end
   end
