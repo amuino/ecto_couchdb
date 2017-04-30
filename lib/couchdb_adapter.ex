@@ -104,6 +104,7 @@ defmodule CouchdbAdapter do
     kv_list = for {name, value} <- map, do: {to_string(name), to_doc_value(value)}
     {kv_list}
   end
+  defp to_doc_value(nil), do: :null
   defp to_doc_value(value), do: value
 
   defp returning(returning, fields) do
