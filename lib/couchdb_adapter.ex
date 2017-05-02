@@ -113,6 +113,7 @@ defmodule CouchdbAdapter do
 
   @doc false
   def prepare(:all, query), do: {:nocache, normalize_query(query)}
+  def prepare(:delete_all, _), do: raise "Unsupported operation: delete_all"
 
   defp normalize_query(%{joins: [_|_]}), do: raise "joins are not supported"
   defp normalize_query(%{preloads: [_|_]}), do: raise "preloads are not supported"

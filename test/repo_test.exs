@@ -302,5 +302,15 @@ defmodule RepoTest do
         Repo.all(from p in Post, where: p.all > "id2")
       end
     end
+
+    test "delete_all" do
+      assert_raise RuntimeError, ~r/Unsupported operation.*delete_all/, fn ->
+        Repo.delete_all(Post)
+      end
+
+      assert_raise RuntimeError, ~r/Unsupported operation.*delete_all/, fn ->
+        Repo.delete_all(from p in Post, where: p.all > "id2")
+      end
+    end
   end
 end
