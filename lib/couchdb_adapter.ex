@@ -183,6 +183,25 @@ defmodule CouchdbAdapter do
     {{schema.__schema__(:default_design), to_string(view)}, endkey: rhs}
   end
 
+  @doc false
+  def delete(_repo, schema_meta, filters, options) do
+    with server <- :couchbeam.server_connection("localhost", 5984),
+         {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
+         {:ok, [result]} <- :couchbeam.delete_doc(db, {filters})
+    do
+      {ok, result} = :couchbeam_doc.take_value("ok", result)
+      if ok != :undefined do
+        {:ok, _rev: :couchbeam_doc.get_value("rev", result)}
+      else
+        error = :couchbeam_doc.get_value("error", result)
+        {:invalid, [check: error]}
+      end
+    else
+      error -> raise(error)
+    end
+  end
+
+
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
   def execute(_repo, meta, {_cache, query}, _params, preprocess, _options) do

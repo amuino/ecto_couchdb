@@ -117,6 +117,69 @@ defmodule RepoTest do
     end
   end
 
+  describe "delete" do
+    setup %{docs: docs, db: db, design_doc: design_doc} do
+      {:ok, _} = :couchbeam.save_doc(db, CouchdbAdapter.to_doc(design_doc))
+      {:ok, results} = :couchbeam.save_docs(db, Enum.map(docs, fn(doc) ->
+        CouchdbAdapter.to_doc(doc)
+      end))
+      docs_with_rev = results
+                      |> Enum.zip(docs)
+                      |> Enum.map(fn {res, doc} ->
+                           Map.put(doc, :_rev, :couchbeam_doc.get_value("rev", res))
+                         end)
+      %{docs: docs_with_rev}
+    end
+
+    test "removes the id", %{docs: docs, db: db} do
+      {deleted_doc, docs} = List.pop_at(docs, 1)
+      post = struct(Post, _id: deleted_doc._id,
+                          _rev: deleted_doc._rev)
+      {:ok, deleted_post} = Repo.delete(post)
+      assert deleted_post._id == post._id
+      assert deleted_post._rev > post._rev
+      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"})
+      ids_after_delete = for res <- query_result, do: :couchbeam_doc.get_value("id", res)
+      assert Enum.map(docs, &(&1._id)) == ids_after_delete
+    end
+
+    test "succeeds if the id is not found" do
+      post = struct(Post, _id: "Not found", _rev: "4-Unknown")
+      assert {:ok, _} = Repo.delete(post)
+    end
+
+    test "fails with a check constraint if the revision is outdated", %{docs: docs} do
+      import Ecto.Changeset
+      {deleted_doc, docs} = List.pop_at(docs, 1)
+      {:error, changeset} = struct(Post, %{_id: deleted_doc._id, _rev: "0-outdated"})
+                            |> change
+                            |> check_constraint(:_rev, name: "conflict")
+                            |> Repo.delete
+      assert changeset.errors[:_rev] != nil
+    end
+
+    defmodule Other do
+      use Ecto.Schema
+      use Couchdb.Design
+      @primary_key false
+
+      schema "posts" do
+        field :_id, :binary_id, autogenerate: true, primary_key: true
+        field :_rev, :string, read_after_writes: true, primary_key: true
+      end
+    end
+
+    test "deletes anything on the same database", %{db: db, docs: docs} do
+      to_delete = List.first(docs)
+      other = %__MODULE__.Other{_id: to_delete._id, _rev: to_delete._rev}
+      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"})
+      assert length(query_result) == 3
+      assert {:ok, _} = Repo.delete(other)
+      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"})
+      assert length(query_result) == 2
+    end
+  end
+
   describe "all(Schema)" do
     setup %{docs: docs, db: db, design_doc: design_doc} do
       :couchbeam.save_docs(db, Enum.map([design_doc | docs], fn(doc) ->
