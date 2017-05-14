@@ -231,4 +231,35 @@ defmodule CouchdbAdapter do
       process.(expr, data, nil)
     end)
   end
+
+  def update(_repo, schema_meta, fields, filters, returning, _options) do
+    with server <- :couchbeam.server_connection("localhost", 5984),
+         {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
+         {:ok, doc} <- fetch_for_update(db, filters),
+         doc <- Enum.reduce(fields, doc, fn({key, value}, accum) ->
+                                           :couchbeam_doc.set_value(to_string(key), to_doc_value(value), accum)
+                                         end),
+         {:ok, doc} <- :couchbeam.save_doc(db, doc)
+    do
+      fields = for field <- returning, do: {field, :couchbeam_doc.get_value(to_string(field), doc)}
+      {:ok, fields}
+    end
+  end
+
+  # Because Ecto will not give us the full document, we need to retrieve it and then update
+  # We try to maintain the Conflict semantics of couchdb and avoid updating documents in a
+  # different revision than the one in the filter.
+  @spec fetch_for_update(:couchbeam.db, [_id: String.t, _rev: String.t]) :: :couchbeam.doc
+  defp fetch_for_update(db, filters) do
+    with {:ok, doc} <- :couchbeam.open_doc(db, filters[:_id])
+    do
+      if :couchbeam_doc.get_rev(doc) == filters[:_rev] do
+        {:ok, doc}
+      else
+        {:error, :stale}
+      end
+    else
+      {:error, :not_found} -> {:error, :stale}
+    end
+  end
 end

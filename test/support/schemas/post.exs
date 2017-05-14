@@ -8,8 +8,8 @@ defmodule Post do
     field :body, :string
     field :_id, :binary_id, autogenerate: true, primary_key: true
     field :_rev, :string, read_after_writes: true, primary_key: true
-    embeds_many :grants, Grant
-    embeds_one :stats, Stats
+    embeds_many :grants, Grant, on_replace: :delete
+    embeds_one :stats, Stats, on_replace: :delete
 
     designs do
       design __MODULE__ do

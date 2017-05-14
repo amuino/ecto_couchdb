@@ -276,6 +276,73 @@ defmodule RepoTest do
     end
   end
 
+  describe "update" do
+    setup %{docs: docs, db: db} do
+      {:ok, results} = :couchbeam.save_docs(db, Enum.map(docs, fn(doc) ->
+        CouchdbAdapter.to_doc(doc)
+      end))
+      docs_with_rev = results
+                      |> Enum.zip(docs)
+                      |> Enum.map(fn {res, doc} ->
+                           Map.put(doc, :_rev, :couchbeam_doc.get_value("rev", res))
+                         end)
+      posts = Enum.map(docs_with_rev, fn(doc) ->
+        struct(Post, %{doc | grants: Enum.map(doc.grants, &struct(Grant, &1)),
+                             stats: struct(Stats, doc.stats)})
+      end)
+      %{posts: posts}
+    end
+
+    test "changes attributes and _rev", %{posts: [post | _], db: db} do
+      {:ok, updated_post} = post
+                            |> Ecto.Changeset.change(title: "Changed title")
+                            |> Ecto.Changeset.put_embed(:stats, %Stats{visits: 1000})
+                            |> Repo.update
+      assert updated_post._rev != post._rev
+      assert updated_post.title == "Changed title"
+      assert updated_post.stats.visits == 1000
+      # check persisted data
+      {:ok, stored_post} = :couchbeam.open_doc(db, post._id)
+      assert :couchbeam_doc.get_idrev(stored_post) == {updated_post._id, updated_post._rev}
+      # unchanged data is persisted
+      assert :couchbeam_doc.get_value("body", stored_post) == post.body
+    end
+
+    test "works with embeds_many", %{posts: [post | _], db: db} do
+      new_grants = Enum.take_random(post.grants, 1) |> Enum.map(&%{&1 | access: "new"})
+      {:ok, updated_post} = post
+                            |> Ecto.Changeset.change
+                            |> Ecto.Changeset.put_embed(:grants, new_grants)
+                            |> Repo.update
+      assert length(updated_post.grants) == 1
+      assert match?([%Grant{access: "new"}], updated_post.grants)
+      # check persisted data
+      {:ok, stored_post} = :couchbeam.open_doc(db, post._id)
+      [stored_grant] = :couchbeam_doc.get_value("grants", stored_post)
+      assert :couchbeam_doc.get_value("access", stored_grant) == "new"
+    end
+
+    test "raises Ecto.StaleEntryError if document is not found", %{posts: [post | _]} do
+      missing_post = post |> Map.put(:_id, "not found")
+      assert_raise(Ecto.StaleEntryError,
+                   fn ->
+                     missing_post
+                     |> Ecto.Changeset.change(title: "Changed title")
+                     |> Repo.update
+                   end)
+    end
+
+    test "raises Ecto.StaleEntryError if the document _rev does not match", %{posts: [post | _]} do
+      stale_post = post |> Map.put(:_rev, "not found")
+      assert_raise(Ecto.StaleEntryError,
+                   fn ->
+                     stale_post
+                     |> Ecto.Changeset.change(title: "Changed title")
+                     |> Repo.update
+                   end)
+    end
+  end
+
   describe "invalid queries" do
     import Ecto.Query
 
