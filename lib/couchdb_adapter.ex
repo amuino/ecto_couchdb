@@ -185,7 +185,7 @@ defmodule CouchdbAdapter do
   end
 
   @doc false
-  def delete(_repo, schema_meta, filters, options) do
+  def delete(_repo, schema_meta, filters, _options) do
     with server <- :couchbeam.server_connection("localhost", 5984),
          {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
          {:ok, [result]} <- :couchbeam.delete_doc(db, {filters})

@@ -150,7 +150,7 @@ defmodule RepoTest do
 
     test "fails with a check constraint if the revision is outdated", %{docs: docs} do
       import Ecto.Changeset
-      {deleted_doc, docs} = List.pop_at(docs, 1)
+      {deleted_doc, _docs} = List.pop_at(docs, 1)
       {:error, changeset} = struct(Post, %{_id: deleted_doc._id, _rev: "0-outdated"})
                             |> change
                             |> check_constraint(:_rev, name: "conflict")
