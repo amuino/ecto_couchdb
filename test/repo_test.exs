@@ -14,8 +14,8 @@ defmodule RepoTest do
                   }}
     docs = for i <- 1..3, do: %{_id: "id#{i}", title: "t#{i}", body: "b#{i}",
                                 stats: %{visits: i, time: 10*i},
-                                grants: [%{user: "u#{i}.1", access: "a#{i}.1"},
-                                         %{user: "u#{i}.2", access: "a#{i}.2"}]}
+                                grants: [%{id: "1", user: "u#{i}.1", access: "a#{i}.1"},
+                                         %{id: "2", user: "u#{i}.2", access: "a#{i}.2"}]}
     {:ok, pid} = Repo.start_link
     on_exit "stop repo", fn -> Process.exit(pid, :kill) end
     %{
@@ -214,8 +214,10 @@ defmodule RepoTest do
     test "reads embeds_many properties" do
       # get results indexed by _id to remove database non-determinism
       results = Repo.all(Post) |> Enum.map(fn post -> {post._id, post} end) |> Enum.into(%{})
-      assert results["id1"].grants == [%Grant{user: "u1.1", access: "a1.1"}, %Grant{user: "u1.2", access: "a1.2"}]
-      assert results["id2"].grants == [%Grant{user: "u2.1", access: "a2.1"}, %Grant{user: "u2.2", access: "a2.2"}]
+      assert results["id1"].grants == [%Grant{user: "u1.1", access: "a1.1", id: "1"},
+                                       %Grant{user: "u1.2", access: "a1.2", id: "2"}]
+      assert results["id2"].grants == [%Grant{user: "u2.1", access: "a2.1", id: "1"},
+                                       %Grant{user: "u2.2", access: "a2.2", id: "2"}]
     end
   end
 
