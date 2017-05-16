@@ -72,9 +72,10 @@ defmodule CouchdbAdapter do
       do
         {:ok, returning(returning, new_fields)}
       else
-        {:error, :conflict} ->
-          # Map the conflict to the format of SQL constraints
-          {:invalid, [unique: "#{db_name(meta)}_id_index"]}
+        # Map the conflict to the format of SQL constraints
+        {:error, :conflict} -> {:invalid, [unique: "#{db_name(meta)}_id_index"]}
+        # other errors
+        {:error, reason} -> raise inspect(reason)
     end
   end
 
@@ -90,6 +91,8 @@ defmodule CouchdbAdapter do
       else
         {length(result), Enum.map(result, fn({fields}) -> returning(returning, fields) end)}
       end
+    else
+      {:error, reason} -> raise inspect(reason)
     end
   end
 
@@ -210,7 +213,7 @@ defmodule CouchdbAdapter do
         {:invalid, [check: error]}
       end
     else
-      error -> raise(error)
+      {:error, reason} -> raise inspect(reason)
     end
   end
 
@@ -225,6 +228,7 @@ defmodule CouchdbAdapter do
       {records, count} = Enum.map_reduce(data, 0, &{process_result(&1, preprocess, meta.fields), &2 + 1})
       {count, records}
     else
+      {:error, {:error, reason}} -> raise inspect(reason)
       {:error, reason} -> raise inspect(reason)
     end
   end
@@ -272,6 +276,7 @@ defmodule CouchdbAdapter do
       end
     else
       {:error, :not_found} -> {:error, :stale}
+      {:error, reason} -> raise inspect(reason)
     end
   end
 end
