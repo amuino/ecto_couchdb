@@ -96,9 +96,9 @@ defmodule CouchdbAdapter do
     end
   end
 
-  @spec db_name(Ecto.Adapter.schema_meta) :: String.t
+  @spec db_name(Ecto.Adapter.schema_meta | Ecto.Adapter.query_meta) :: String.t
   defp db_name(%{schema: schema}), do: schema.__schema__(:source)
-  defp db_name({{db_name, _}}), do: db_name
+  defp db_name(%{sources: {{db_name, _}}}), do: db_name
 
   @spec to_doc(Keyword.t | Map.t) :: {[{String.t, any}]}
   def to_doc(fields) do
@@ -220,12 +220,12 @@ defmodule CouchdbAdapter do
 
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
-  def execute(repo, meta, {_cache, query}, _params, preprocess, _options) do
+  def execute(repo, query_meta, {_cache, query}, _params, preprocess, _options) do
     with server <- server_for(repo),
-         {:ok, db} <- :couchbeam.open_db(server, db_name(meta.sources)),
+         {:ok, db} <- :couchbeam.open_db(server, db_name(query_meta)),
          {:ok, data} <- :couchbeam_view.fetch(db, query.view, query.options)
     do
-      {records, count} = Enum.map_reduce(data, 0, &{process_result(&1, preprocess, meta.fields), &2 + 1})
+      {records, count} = Enum.map_reduce(data, 0, &{process_result(&1, preprocess, query_meta.fields), &2 + 1})
       {count, records}
     else
       {:error, {:error, reason}} -> raise inspect(reason)
