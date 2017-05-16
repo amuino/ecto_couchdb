@@ -5,7 +5,7 @@ defmodule RepoTest do
   use ExUnit.Case, async: true
 
   setup do
-    db = DatabaseCleaner.ensure_clean_db!(Post)
+    db = DatabaseCleaner.ensure_clean_db!(Repo, Post)
     design_doc = %{_id: "_design/Post", language: "javascript",
                    views: %{
                      all: %{

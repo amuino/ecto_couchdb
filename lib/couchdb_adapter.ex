@@ -30,14 +30,26 @@ defmodule CouchdbAdapter do
   @doc false
   def dumpers(_, type),               do: [type]
 
-  defmodule Noop do
-    @moduledoc false
-    def start_link, do: {:ok, self()}
+  def child_spec(repo, _options) do
+    :hackney_pool.child_spec(repo, pool_config(repo.config))
   end
 
-  def child_spec(_repo, _options) do
-    import Supervisor.Spec
-    worker(Noop, [])
+  @default_pool_options [max_connections: 20, timeout: 10_000]
+  defp pool_config(config) do
+    config_options = Keyword.take(config, [:max_connections, :timeout])
+    Keyword.merge @default_pool_options, config_options
+  end
+
+  @doc ~S"""
+  Returns the server connection to use with the given repo
+  """
+  defp server_for(repo) do
+    config = repo.config
+    host = Keyword.get(config, :hostname, "localhost")
+    port = Keyword.get(config, :port, 5984)
+    prefix = Keyword.get(config, :prefix, "")
+    options = [pool: repo]
+    :couchbeam.server_connection(host, port, prefix, options)
   end
 
   def ensure_all_started(_repo, type) do
@@ -53,8 +65,8 @@ defmodule CouchdbAdapter do
   # - returning: list of atoms of fields whose value needs to be returned
   # - options: ??? Seems to be a Keyword.t (but the actual type is options). Arrives as [skip_transaction: true]
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
-  def insert(_repo, meta, fields, _on_conflict, returning, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984, "", []),
+  def insert(repo, meta, fields, _on_conflict, returning, _options) do
+    with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta)),
          {:ok, {new_fields}} <- :couchbeam.save_doc(db, to_doc(fields))
       do
@@ -68,8 +80,8 @@ defmodule CouchdbAdapter do
 
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
-  def insert_all(_repo, schema_meta, _header, list, _on_conflict, returning, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984),
+  def insert_all(repo, schema_meta, _header, list, _on_conflict, returning, _options) do
+    with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
          {:ok, result} <- :couchbeam.save_docs(db, Enum.map(list, &to_doc(&1)))
     do
@@ -185,8 +197,8 @@ defmodule CouchdbAdapter do
   end
 
   @doc false
-  def delete(_repo, schema_meta, filters, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984),
+  def delete(repo, schema_meta, filters, _options) do
+    with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
          {:ok, [result]} <- :couchbeam.delete_doc(db, {filters})
     do
@@ -205,8 +217,8 @@ defmodule CouchdbAdapter do
 
   @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
-  def execute(_repo, meta, {_cache, query}, _params, preprocess, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984),
+  def execute(repo, meta, {_cache, query}, _params, preprocess, _options) do
+    with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta.sources)),
          {:ok, data} <- :couchbeam_view.fetch(db, query.view, query.options)
     do
@@ -232,8 +244,8 @@ defmodule CouchdbAdapter do
     end)
   end
 
-  def update(_repo, schema_meta, fields, filters, returning, _options) do
-    with server <- :couchbeam.server_connection("localhost", 5984),
+  def update(repo, schema_meta, fields, filters, returning, _options) do
+    with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(schema_meta)),
          {:ok, doc} <- fetch_for_update(db, filters),
          doc <- Enum.reduce(fields, doc, fn({key, value}, accum) ->
