@@ -4,6 +4,11 @@ defmodule RepoTest do
   #
   use ExUnit.Case, async: true
 
+  setup_all do
+    {:ok, _} = Repo.start_link
+    :ok
+  end
+
   setup do
     db = DatabaseCleaner.ensure_clean_db!(Repo, Post)
     design_doc = %{_id: "_design/Post", language: "javascript",
@@ -16,8 +21,6 @@ defmodule RepoTest do
                                 stats: %{visits: i, time: 10*i},
                                 grants: [%{id: "1", user: "u#{i}.1", access: "a#{i}.1"},
                                          %{id: "2", user: "u#{i}.2", access: "a#{i}.2"}]}
-    {:ok, pid} = Repo.start_link
-    on_exit "stop repo", fn -> Process.exit(pid, :kill) end
     %{
       db: db,
       post: %Post{title: "how to write and adapter", body: "Don't know yet"},
@@ -133,14 +136,12 @@ defmodule RepoTest do
 
     test "removes the id", %{docs: docs, db: db} do
       {deleted_doc, docs} = List.pop_at(docs, 1)
-      post = struct(Post, _id: deleted_doc._id,
-                          _rev: deleted_doc._rev)
+      post = struct(Post, _id: deleted_doc._id, _rev: deleted_doc._rev)
       {:ok, deleted_post} = Repo.delete(post)
       assert deleted_post._id == post._id
       assert deleted_post._rev > post._rev
-      {:ok, query_result} = :couchbeam_view.fetch(db, {"Post", "all"})
-      ids_after_delete = for res <- query_result, do: :couchbeam_doc.get_value("id", res)
-      assert Enum.map(docs, &(&1._id)) == ids_after_delete
+      assert {:error, :not_found} == :couchbeam.open_doc(db, deleted_post._id)
+      assert {:error, :not_found} != :couchbeam.open_doc(db, List.first(docs)._id)
     end
 
     test "succeeds if the id is not found" do
