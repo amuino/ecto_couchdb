@@ -40,9 +40,8 @@ defmodule CouchdbAdapter do
     Keyword.merge @default_pool_options, config_options
   end
 
-  @doc ~S"""
-  Returns the server connection to use with the given repo
-  """
+
+  # Returns the server connection to use with the given repo
   defp server_for(repo) do
     config = repo.config
     host = Keyword.get(config, :hostname, "localhost")
@@ -64,7 +63,6 @@ defmodule CouchdbAdapter do
   # - on_conflict: https://hexdocs.pm/ecto/Ecto.Adapter.html#t:on_conflict/0
   # - returning: list of atoms of fields whose value needs to be returned
   # - options: ??? Seems to be a Keyword.t (but the actual type is options). Arrives as [skip_transaction: true]
-  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   def insert(repo, meta, fields, _on_conflict, returning, _options) do
     with server <- server_for(repo),
          {:ok, db} <- :couchbeam.open_db(server, db_name(meta)),
@@ -79,7 +77,6 @@ defmodule CouchdbAdapter do
     end
   end
 
-  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
   def insert_all(repo, schema_meta, _header, list, _on_conflict, returning, _options) do
     with server <- server_for(repo),
@@ -100,7 +97,7 @@ defmodule CouchdbAdapter do
   defp db_name(%{schema: schema}), do: schema.__schema__(:source)
   defp db_name(%{sources: {{db_name, _}}}), do: db_name
 
-  @spec to_doc(Keyword.t | Map.t) :: {[{String.t, any}]}
+  @spec to_doc(Keyword.t | map) :: {[{String.t, any}]}
   def to_doc(fields) do
     kv_list = for {name, value} <- fields do
       {to_string(name), to_doc_value(value)}
@@ -217,8 +214,6 @@ defmodule CouchdbAdapter do
     end
   end
 
-
-  @lint {Credo.Check.Refactor.FunctionArity, false} # arity from Ecto.Adapter behaviour
   @doc false
   def execute(repo, query_meta, {_cache, query}, _params, preprocess, _options) do
     with server <- server_for(repo),
